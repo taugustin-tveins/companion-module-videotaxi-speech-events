@@ -1,0 +1,36 @@
+{
+  "$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+  "type": "connection",
+  "id": "videotaxi-speech-events",
+  "name": "videotaxi-speech-events",
+  "shortname": "VIDEO.TAXI Speech",
+  "description": "Steuert die Chrome-Erweiterung 'VIDEO.TAXI - SPEECH EVENTS Controller' (Senden Start/Stopp, Eingabesprache, Vollbild) mit Feedback. Das Modul öffnet selbst einen lokalen WebSocket-Server; die Erweiterung verbindet sich dorthin.",
+  "version": "1.3.2",
+  "license": "MIT",
+  "repository": "git+https://gitlab.r53.cdn.tv1.eu/thomasaugustin/speech-events-controller.git",
+  "bugs": "https://gitlab.r53.cdn.tv1.eu/thomasaugustin/speech-events-controller/-/issues",
+  "maintainers": [
+    {
+      "name": "Thomas Augustin",
+      "email": "t.augustin@tv1.eu"
+    }
+  ],
+  "runtime": {
+    "type": "node22",
+    "api": "nodejs-ipc",
+    "apiVersion": "2.0.4",
+    "entrypoint": "../src/main.js"
+  },
+  "legacyIds": [],
+  "manufacturer": "VIDEO.TAXI",
+  "products": [
+    "SPEECH EVENTS"
+  ],
+  "keywords": [
+    "video.taxi",
+    "speech",
+    "events",
+    "transcription",
+    "stream deck"
+  ]
+}
