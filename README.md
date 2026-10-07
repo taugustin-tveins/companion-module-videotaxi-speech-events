@@ -112,6 +112,47 @@ Speicherung wie in den Extension-Optionen).
 - **Variablen** dazu: `viewer_language`, `direction`, `voiceover`, `original`,
   `qr`, `info`, `display`.
 
+## Neu in 1.3.7 (Vollbild schließen)
+
+Neue Aktion **„Transkript-Vollbild schließen"** und ein passendes Preset
+(Kategorie „Senden"). Schließt das offene Vollbildfenster. In der Erweiterung
+gibt es dafür auch im Popup einen Button „Vollbild schließen".
+
+## Neu in 1.3.6 (Vollbild-Aktionen folgen der aktiven Session)
+
+Alle Vollbild-Aktionen (Anzeigesprache, Textrichtung, Zoom, die Schalter,
+Zoom + / −, Vollbild öffnen) haben im Session-Dropdown jetzt die Option
+**„Aktive Anlieferungssession"** und nutzen sie als Standard. Damit wirken die
+Buttons automatisch auf die gerade gewählte Session, ohne eine feste Session zu
+hinterlegen. Eine feste Session kann weiterhin ausgewählt werden.
+
+## Neu in 1.3.5 (Textrichtung umschalten)
+
+Die Aktion „Vollbild: Textrichtung setzen" hat neben „Von unten nach oben" und
+„Von oben nach unten" jetzt **„Umschalten"**. Dazu ein Preset in der Kategorie
+„Vollbild-Schalter", das die aktuelle Richtung zeigt (▲ unten→oben /
+▼ oben→unten).
+
+## Neu in 1.3.4 (Umschalten für die Vollbild-Schalter)
+
+Die vier Schalter-Aktionen (Audio-Übersetzung, Originalsprache, QR-Code,
+Event-Info-Link) haben im Dropdown neben „An"/„Aus" jetzt **„Umschalten"**. Dazu
+gibt es in der Preset-Kategorie **„Vollbild-Schalter"** vier fertige
+Toggle-Buttons, die grün leuchten, wenn der Schalter der aktiven Session an ist.
+
+## Neu in 1.3.3 (WebSocket-IP einstellbar)
+
+In den Verbindungseinstellungen gibt es neben dem Port jetzt das Feld
+**„WebSocket-IP (Bind-Adresse)"**. Standard bleibt `127.0.0.1` (nur lokal
+erreichbar). Für Zugriff von einem anderen Rechner eine erreichbare IP dieses
+Rechners eintragen oder `0.0.0.0` für alle Schnittstellen. Nach dem Ändern
+startet der Server automatisch neu.
+
+> Bei `0.0.0.0` bzw. einer LAN-IP ist der Server im Netzwerk erreichbar; nur in
+> vertrauenswürdigen Netzen nutzen. Läuft die Chrome-Erweiterung auf einem
+> anderen Rechner, muss dort die Bridge-Adresse auf `ws://<diese-IP>:PORT`
+> zeigen und die Ziel-IP in den `host_permissions` der Erweiterung erlaubt sein.
+
 ## Aktuelle Sprache am Button anzeigen
 
 Beim Sprach-Button im **Style**-Textfeld z. B. eintragen:

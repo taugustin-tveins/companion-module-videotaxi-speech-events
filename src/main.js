@@ -10,6 +10,7 @@ const C_GOLD = combineRgb(196, 132, 42)
 const C_DARK = combineRgb(24, 22, 18)
 
 const DEFAULT_PORT = 8465
+const DEFAULT_HOST = '127.0.0.1'
 const HEARTBEAT_MS = 20000
 // Wird im Preset-Variablen-Text verwendet (Verbindungs-Label). Entspricht dem
 // Standard-Label, das Companion aus dem Shortname „VIDEO.TAXI Speech" ableitet.
@@ -60,8 +61,9 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 
 	async configUpdated(config) {
 		const portChanged = (config?.port || '') !== (this.config?.port || '')
+		const hostChanged = (config?.host || '') !== (this.config?.host || '')
 		this.config = config
-		if (portChanged) {
+		if (portChanged || hostChanged) {
 			this.stopServer()
 			this.startServer()
 		}
@@ -75,9 +77,19 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				width: 12,
 				label: 'So funktioniert es',
 				value:
-					'Dieses Modul öffnet einen lokalen WebSocket-Server. Trage in der Chrome-Erweiterung ' +
-					'(Optionen → „Companion / Stream Deck") als Bridge-Adresse <b>ws://127.0.0.1:PORT</b> ein ' +
-					'(gleicher Port wie unten). Eine separate Bridge ist dann nicht mehr nötig.',
+					'Dieses Modul öffnet einen WebSocket-Server. Trage in der Chrome-Erweiterung ' +
+					'(Optionen → „Companion / Stream Deck") als Bridge-Adresse <b>ws://IP:PORT</b> ein ' +
+					'(gleiche IP und Port wie unten). Eine separate Bridge ist dann nicht mehr nötig. ' +
+					'Standard ist <b>127.0.0.1</b> (nur lokal). Für Zugriff von einem anderen Rechner eine ' +
+					'erreichbare IP dieses Rechners eintragen oder <b>0.0.0.0</b> für alle Schnittstellen.',
+			},
+			{
+				type: 'textinput',
+				id: 'host',
+				label: 'WebSocket-IP (Bind-Adresse)',
+				width: 8,
+				default: DEFAULT_HOST,
+				regex: Regex.IP,
 			},
 			{
 				type: 'textinput',
@@ -90,6 +102,11 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 		]
 	}
 
+	getHost() {
+		const h = String(this.config?.host || '').trim()
+		return h || DEFAULT_HOST
+	}
+
 	getPort() {
 		const p = parseInt(this.config?.port, 10)
 		return Number.isFinite(p) && p > 0 ? p : DEFAULT_PORT
@@ -98,15 +115,16 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 	// --- WebSocket-Server -----------------------------------------------------
 	startServer() {
 		const port = this.getPort()
+		const host = this.getHost()
 		this.updateStatus(InstanceStatus.Connecting, 'Warte auf Erweiterung …')
 		try {
-			this.wss = new WebSocketServer({ host: '127.0.0.1', port })
+			this.wss = new WebSocketServer({ host, port })
 		} catch (err) {
 			this.updateStatus(InstanceStatus.ConnectionFailure, String(err?.message || err))
 			return
 		}
 
-		this.wss.on('listening', () => this.log('info', `WebSocket-Server läuft auf ws://127.0.0.1:${port}`))
+		this.wss.on('listening', () => this.log('info', `WebSocket-Server läuft auf ws://${host}:${port}`))
 		this.wss.on('error', (err) => {
 			this.log('error', `Server-Fehler: ${err?.message || err}`)
 			this.updateStatus(InstanceStatus.ConnectionFailure, String(err?.message || err))
@@ -292,6 +310,14 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			: [{ id: '', label: '(Sessions noch nicht geladen)' }]
 	}
 
+	// Für Vollbild-Aktionen: zusätzlich die aktive Anlieferungssession (leere ID →
+	// die Erweiterung nutzt die gerade gewählte Session, folgt also der Auswahl).
+	viewerSessionChoices() {
+		return [{ id: '', label: 'Aktive Anlieferungssession' }].concat(
+			this.sessions.map((s) => ({ id: s.id, label: s.name }))
+		)
+	}
+
 	viewerLangChoices() {
 		return [{ id: '', label: 'Standard (Quellsprache)' }].concat(
 			this.viewerLanguages.map((l) => ({ id: l.code, label: `${l.name} (${l.code})` }))
@@ -334,13 +360,14 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			type: 'dropdown',
 			id: 'session',
 			label: 'Session',
-			default: sessionDefault,
-			choices: this.sessionChoices(),
+			default: '',
+			choices: this.viewerSessionChoices(),
 			allowCustom: true,
 		})
 		const ONOFF = [
 			{ id: 'true', label: 'An' },
 			{ id: 'false', label: 'Aus' },
+			{ id: 'toggle', label: 'Umschalten' },
 		]
 		// Setz-Aktion für einen Vollbild-Schalter (Session + An/Aus).
 		const viewerToggle = (name, action) => ({
@@ -398,7 +425,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			set_viewer_language: {
 				name: 'Vollbild: Anzeigesprache setzen',
 				options: [
-					{ type: 'dropdown', id: 'session', label: 'Session', default: sessionDefault, choices: this.sessionChoices(), allowCustom: true },
+					sess(),
 					{ type: 'dropdown', id: 'lang', label: 'Anzeigesprache', default: '', choices: this.viewerLangChoices(), allowCustom: true },
 				],
 				callback: (ev) => this.sendCmdFields('setViewerLanguage', { session: ev.options.session, value: ev.options.lang }),
@@ -406,7 +433,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			set_viewer_direction: {
 				name: 'Vollbild: Textrichtung setzen',
 				options: [
-					{ type: 'dropdown', id: 'session', label: 'Session', default: sessionDefault, choices: this.sessionChoices(), allowCustom: true },
+					sess(),
 					{
 						type: 'dropdown',
 						id: 'dir',
@@ -415,6 +442,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 						choices: [
 							{ id: 'btt', label: 'Von unten nach oben' },
 							{ id: 'ttb', label: 'Von oben nach unten' },
+							{ id: 'toggle', label: 'Umschalten' },
 						],
 					},
 				],
@@ -423,7 +451,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			set_viewer_zoom: {
 				name: 'Vollbild: Browser-Zoom setzen',
 				options: [
-					{ type: 'dropdown', id: 'session', label: 'Session', default: sessionDefault, choices: this.sessionChoices(), allowCustom: true },
+					sess(),
 					{
 						type: 'dropdown',
 						id: 'zoom',
@@ -459,6 +487,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				options: [sess()],
 				callback: (ev) => this.sendCmdFields('openFullscreen', { session: ev.options.session }),
 			},
+			close_fullscreen: { name: 'Transkript-Vollbild schließen', ...cmd('closeFullscreen') },
 		})
 	}
 
@@ -617,6 +646,17 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				'24'
 			)
 
+		// Umschalt-Preset für einen Vollbild-Schalter der aktiven Session (grün = An).
+		const viewerTogglePreset = (name, text, actionId, feedbackId) =>
+			preset(
+				name,
+				text,
+				actionId,
+				{ session: '', value: 'toggle' },
+				[{ feedbackId, options: {}, style: { bgcolor: C_GREEN, color: C_WHITE } }],
+				'14'
+			)
+
 		const presets = {
 			start_green: preset('Start (grün wenn aktiv)', 'START', 'send_start', {}, [
 				{ feedbackId: 'sending', options: {}, style: { bgcolor: C_GREEN, color: C_WHITE } },
@@ -632,6 +672,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				{ feedbackId: 'sending', options: {}, isInverted: true, style: { bgcolor: C_RED, color: C_WHITE, text: 'Start' } },
 			]),
 			open_fullscreen: preset('Transkript-Vollbild öffnen', 'VOLLBILD', 'open_fullscreen'),
+			close_fullscreen: preset('Transkript-Vollbild schließen', 'VOLLBILD\nSCHLIESSEN', 'close_fullscreen', {}, [], '14'),
 
 			lang_de: langPreset('DE', 'de-DE'),
 			lang_en: langPreset('EN', 'en-GB'),
@@ -646,16 +687,44 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			// ▲ zeigt nur das Label „Zoom", ▼ zeigt den aktuellen Zoom-Faktor.
 			zoom_next_preset: preset('Zoom + (▲ „Zoom")', '▲\nZoom', 'zoom_next', {}, [], '14'),
 			zoom_prev_preset: preset('Zoom − (▼ zeigt aktuellen)', `▼\n$(${LABEL}:zoom)`, 'zoom_prev', {}, [], '14'),
+
+			// Toggle-Presets für die Vollbild-Schalter (aktive Session). Grün = An.
+			voiceover_toggle: viewerTogglePreset('Audio-Übersetzung umschalten', 'AUDIO', 'set_viewer_voiceover', 'voiceover_on'),
+			original_toggle: viewerTogglePreset('Originalsprache umschalten', 'ORIGINAL', 'set_viewer_original', 'original_on'),
+			qr_toggle: viewerTogglePreset('QR-Code umschalten', 'QR', 'set_viewer_qr', 'qr_on'),
+			info_toggle: viewerTogglePreset('Event-Info-Link umschalten', 'INFO', 'set_viewer_info', 'info_on'),
+
+			// Textrichtung umschalten; Button zeigt die aktuelle Richtung (▲ unten→oben / ▼ oben→unten).
+			direction_toggle: preset(
+				'Textrichtung umschalten (zeigt aktuelle)',
+				'RICHTUNG',
+				'set_viewer_direction',
+				{ session: '', dir: 'toggle' },
+				[
+					{ feedbackId: 'direction_is', options: { dir: 'btt' }, style: { bgcolor: C_GREEN, color: C_WHITE, text: '▲\nunten→oben' } },
+					{ feedbackId: 'direction_is', options: { dir: 'ttb' }, style: { bgcolor: C_GREEN, color: C_WHITE, text: '▼\noben→unten' } },
+				],
+				'14'
+			),
 		}
 
 		const structure = [
-			{ id: 'senden', name: 'Senden', definitions: ['start_green', 'stop_red', 'toggle_send', 'open_fullscreen'] },
+			{
+				id: 'senden',
+				name: 'Senden',
+				definitions: ['start_green', 'stop_red', 'toggle_send', 'open_fullscreen', 'close_fullscreen'],
+			},
 			{
 				id: 'sprachen',
 				name: 'Eingabesprachen',
 				definitions: ['lang_de', 'lang_en', 'lang_es', 'lang_fr', 'lang_it', 'lang_next_preset', 'lang_prev_preset'],
 			},
 			{ id: 'zoom', name: 'Zoom', definitions: ['zoom_next_preset', 'zoom_prev_preset'] },
+			{
+				id: 'vollbild',
+				name: 'Vollbild-Schalter',
+				definitions: ['voiceover_toggle', 'original_toggle', 'qr_toggle', 'info_toggle', 'direction_toggle'],
+			},
 		]
 
 		this.setPresetDefinitions(structure, presets)
