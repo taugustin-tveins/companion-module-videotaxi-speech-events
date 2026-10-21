@@ -42,6 +42,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			showQrCode: false,
 			showInfoButton: true,
 			display: '',
+			fullscreen: false,
 			connected: false,
 		}
 	}
@@ -216,6 +217,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			if ('showQrCode' in msg) this.state.showQrCode = !!msg.showQrCode
 			if ('showInfoButton' in msg) this.state.showInfoButton = !!msg.showInfoButton
 			if ('display' in msg) this.state.display = String(msg.display ?? '')
+			if ('fullscreen' in msg) this.state.fullscreen = !!msg.fullscreen
 			this.publish()
 		} else if (msg.type === 'languages') {
 			this.languages = Array.isArray(msg.list) ? msg.list : []
@@ -244,6 +246,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			error: this.state.error,
 			language: this.state.language,
 			session: this.state.session,
+			session_name: this.nameFor(this.sessions, this.state.session),
 			level: this.state.level,
 			zoom: this.state.zoom,
 			viewer_language: this.state.viewerLanguage,
@@ -253,6 +256,8 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			qr: this.state.showQrCode,
 			info: this.state.showInfoButton,
 			display: this.state.display,
+			display_name: this.state.display ? this.nameFor(this.displays, this.state.display) : 'Aktueller Bildschirm',
+			fullscreen: this.state.fullscreen,
 			connected: this.state.connected,
 		})
 		this.checkFeedbacks(
@@ -268,7 +273,8 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			'original_on',
 			'qr_on',
 			'info_on',
-			'display_is'
+			'display_is',
+			'fullscreen_open'
 		)
 	}
 
@@ -290,6 +296,12 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			}
 		}
 		if (sent === 0) this.log('warn', `Befehl "${action}" nicht gesendet — keine Erweiterung verbunden.`)
+	}
+
+	// Klarnamen zu einer ID aus einer {id,name}-Liste (Fallback: die ID selbst).
+	nameFor(list, id) {
+		const m = (list || []).find((x) => String(x.id) === String(id))
+		return m ? m.name : (id || '')
 	}
 
 	languageMatches(value) {
@@ -338,6 +350,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			error: { name: 'Fehlertext' },
 			language: { name: 'Eingabesprache (Code)' },
 			session: { name: 'Session-ID' },
+			session_name: { name: 'Session-Name (Anlieferung)' },
 			level: { name: 'Audiopegel (0–100)' },
 			zoom: { name: 'Browser-Zoom (Faktor)' },
 			connected: { name: 'Erweiterung verbunden (true/false)' },
@@ -348,6 +361,8 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			qr: { name: 'Vollbild: QR-Code (true/false)' },
 			info: { name: 'Vollbild: Event-Info-Link (true/false)' },
 			display: { name: 'Vollbild-Monitor (ID)' },
+			display_name: { name: 'Vollbild-Monitor (Name)' },
+			fullscreen: { name: 'Transkript-Vollbild offen (true/false)' },
 		})
 		this.publish()
 	}
@@ -481,6 +496,10 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				options: [{ type: 'dropdown', id: 'display', label: 'Monitor', default: '', choices: this.displayChoices(), allowCustom: true }],
 				callback: (ev) => this.sendCmdFields('setDisplay', { value: ev.options.display }),
 			},
+			display_next: { name: 'Vollbild: Nächster Monitor', ...cmd('displayNext') },
+			display_prev: { name: 'Vollbild: Voriger Monitor', ...cmd('displayPrev') },
+			session_next: { name: 'Nächste Session (Anlieferung)', ...cmd('sessionNext') },
+			session_prev: { name: 'Vorige Session (Anlieferung)', ...cmd('sessionPrev') },
 
 			open_fullscreen: {
 				name: 'Transkript-Vollbild öffnen',
@@ -488,6 +507,11 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				callback: (ev) => this.sendCmdFields('openFullscreen', { session: ev.options.session }),
 			},
 			close_fullscreen: { name: 'Transkript-Vollbild schließen', ...cmd('closeFullscreen') },
+			toggle_fullscreen: {
+				name: 'Transkript-Vollbild öffnen/schließen',
+				options: [sess()],
+				callback: (ev) => this.sendCmdFields('toggleFullscreen', { session: ev.options.session }),
+			},
 		})
 	}
 
@@ -624,6 +648,13 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 				options: [{ type: 'dropdown', id: 'display', label: 'Monitor', default: '', choices: this.displayChoices(), allowCustom: true }],
 				callback: (fb) => String(this.state.display || '') === String(fb.options.display || ''),
 			},
+			fullscreen_open: {
+				type: 'boolean',
+				name: 'Transkript-Vollbild offen',
+				defaultStyle: { bgcolor: C_GREEN, color: C_WHITE },
+				options: [],
+				callback: () => this.state.fullscreen === true,
+			},
 		})
 	}
 
@@ -673,6 +704,10 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			]),
 			open_fullscreen: preset('Transkript-Vollbild öffnen', 'VOLLBILD', 'open_fullscreen'),
 			close_fullscreen: preset('Transkript-Vollbild schließen', 'VOLLBILD\nSCHLIESSEN', 'close_fullscreen', {}, [], '14'),
+			// Umschalten auf einem Button; grün + Text „ZU", wenn das Vollbild offen ist.
+			toggle_fullscreen: preset('Vollbild öffnen/schließen', 'VOLLBILD\nAUF', 'toggle_fullscreen', {}, [
+				{ feedbackId: 'fullscreen_open', options: {}, style: { bgcolor: C_GREEN, color: C_WHITE, text: 'VOLLBILD\nZU' } },
+			], '14'),
 
 			lang_de: langPreset('DE', 'de-DE'),
 			lang_en: langPreset('EN', 'en-GB'),
@@ -712,7 +747,7 @@ class VideoTaxiSpeechInstance extends InstanceBase {
 			{
 				id: 'senden',
 				name: 'Senden',
-				definitions: ['start_green', 'stop_red', 'toggle_send', 'open_fullscreen', 'close_fullscreen'],
+				definitions: ['start_green', 'stop_red', 'toggle_send', 'open_fullscreen', 'close_fullscreen', 'toggle_fullscreen'],
 			},
 			{
 				id: 'sprachen',
